@@ -19,6 +19,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import f1_score
 import sys
 import os
+from sklearn.metrics import top_k_accuracy_score
 
 # EVM
 from vast.opensetAlgos.EVM import EVM_Training, EVM_Inference
@@ -38,7 +39,7 @@ percent=50
 
 device = "cuda:0"
 
-run_svm = False
+run_svm = True
 run_evm = True
 
 debug = True
@@ -61,7 +62,7 @@ if debug:
     test_unknown_unknown_feature_path = "/afs/crc.nd.edu/user/j/jhuang24/scratch_51/kitware_internship/" \
                                         "evm/data/ucf101_ta2/ucf_101_test_unknown_valid_feature.npy"
 
-    evm_model_save_path = "/afs/crc.nd.edu/user/j/jhuang24/debug_evm_model.pkl"
+    save_result_dir = "/afs/crc.nd.edu/user/j/jhuang24/vast_debug_files"
 
     valid_known_known_probs_path = "/afs/crc.nd.edu/user/j/jhuang24/Public/darpa_sail_on/models/msd_net/" \
                                    "2022-02-13/known_only_cross_entropy/seed_0/features/valid_known_known_epoch_147_probs.npy"
@@ -113,9 +114,8 @@ else:
 
     test_unknown_unknown_feature_path = unknown_feature_dir + "/test_unknown_unknown_features.npy"
 
-    # Paths to save EVM model and all results
+    # Paths to save EVM model, EVM probs and results
     save_result_dir = unknown_feature_dir
-
 
 
 #####################################################
@@ -145,11 +145,11 @@ if debug:
 
     # For testing, just get 100 samples
     train_known_known_feature = train_known_known_feature[:100]
-    test_known_known_feature = test_known_known_feature[:100]
+    test_known_known_feature = test_known_known_feature[:30]
     test_unknown_unknown_feature = test_unknown_unknown_feature[:100]
 
     train_known_known_label = train_known_known_label[:100]
-    test_known_known_label = test_known_known_label[:100]
+    test_known_known_label = test_known_known_label[:30]
 
 else:
     pass
@@ -187,7 +187,7 @@ def get_thresholds(npy_file_path,
 
     # Load npy file and check the shape
     probs = np.load(npy_file_path)
-    print(probs.shape) # Shape [nb_samples, nb_clfs, nb_classes]
+    # print(probs.shape) # Shape [nb_samples, nb_clfs, nb_classes]
 
     # Process each sample
     for i in range(probs.shape[0]):
@@ -247,12 +247,24 @@ def get_unknown_acc(probs,
 
 
 
+# TODO: this function TBD - do we need it or not?
+def get_known_acc(known_probs):
+    """
+    top-1, top-3, top-5 acc for evm
+
+    :param known_probs:
+    :return:
+    """
+
+
+
 
 def train_test_svm(train_known_feature,
                    train_known_labels,
                    test_known_feature,
                    test_known_labels,
-                   test_unknown_feature):
+                   test_unknown_feature,
+                   debug):
     """
 
     :param train_known_feature:
@@ -275,10 +287,18 @@ def train_test_svm(train_known_feature,
     pred_known_known = svm_model.predict(test_known_feature)
     unknown_unknown_prob = svm_model.predict_proba(test_unknown_feature)
 
-    acc_known_known = accuracy_score(test_known_labels, pred_known_known)
-    print("Test known known accuracy:", acc_known_known)
 
-    return acc_known_known, unknown_unknown_prob
+    if debug:
+        acc_known_top_1 = top_k_accuracy_score(test_known_labels, pred_known_known, k=1)
+
+        return acc_known_top_1, 0.000, 0.000, unknown_unknown_prob
+
+    else:
+        acc_known_top_1 = top_k_accuracy_score(test_known_labels, pred_known_known, k=1)
+        acc_known_top_3 = top_k_accuracy_score(test_known_labels, pred_known_known, k=3)
+        acc_known_top_5 = top_k_accuracy_score(test_known_labels, pred_known_known, k=5)
+
+        return acc_known_top_1, acc_known_top_3, acc_known_top_5, unknown_unknown_prob
 
 
 
@@ -287,7 +307,8 @@ def train_test_evm(train_known_feature,
                    train_known_labels,
                    test_known_feature,
                    test_unknown_feature,
-                   tail_size):
+                   tail_size,
+                   debug):
     """
 
     :param train_known_feature:
@@ -319,41 +340,37 @@ def train_test_evm(train_known_feature,
     evm.fit(train_known_feature, train_known_labels)
 
     # Save EVM model, so no need to retrain
+    evm_model_save_path = save_result_dir + "/evm_model_tail_size_" + str(tail_size) + ".pkl"
     print("Saving EVM model")
     evm.save(evm_model_save_path)
 
     print(test_known_feature.shape)
 
-
-    # Test EVM
-    print("Testing EVM")
-
     # Convert data type
     test_known_known_feature = torch.from_numpy(test_known_feature).float()
     test_unknown_unknown_feature = torch.from_numpy(test_unknown_feature).float()
 
-    # Known known
-    print("Testing known known")
+    # Test EVM
+    print("Testing EVM")
+    known_known_known_probs = evm.known_probs(test_known_known_feature).cpu().detach().numpy()
+    unknown_unknown_known_probs = evm.known_probs(test_unknown_unknown_feature).cpu().detach().numpy()
 
-    known_known_pred = evm.predict(test_known_known_feature)
-    known_known_known_probs = evm.known_probs(test_known_known_feature)
+    # Get predictions
+    pred_labels = np.argmax(known_known_known_probs, axis=1)
 
-    known_known_pred = known_known_pred.cpu().detach().numpy()
-    known_known_known_probs = known_known_known_probs.cpu().detach().numpy()
+    # Known accuracy
+    if debug:
+        acc_known_top_1 = top_k_accuracy_score(test_known_known_label, pred_labels, k=1)
 
-    print("known_known_pred", known_known_pred.shape)
-    print("known_known_known_probs", known_known_known_probs.shape)
+        return acc_known_top_1, 0.000, 0.000, known_known_known_probs, unknown_unknown_known_probs
 
-    # unknown unknown
-    unknown_unknown_pred = evm.predict(test_unknown_unknown_feature)
-    unknown_unknown_known_probs = evm.known_probs(test_unknown_unknown_feature)
-    unknown_unknown_pred = unknown_unknown_pred.cpu().detach().numpy()
-    unknown_unknown_known_probs = unknown_unknown_known_probs.cpu().detach().numpy()
+    else:
+        acc_known_top_1 = top_k_accuracy_score(test_known_known_label, pred_labels, k=1)
+        acc_known_top_3 = top_k_accuracy_score(test_known_known_label, pred_labels, k=3)
+        acc_known_top_5 = top_k_accuracy_score(test_known_known_label, pred_labels, k=5)
 
-    print("unknown_unknown_pred", unknown_unknown_pred.shape)
-    print("unknown_unknown_known_probs", unknown_unknown_known_probs.shape)
-
-    return known_known_pred, known_known_known_probs, unknown_unknown_pred, unknown_unknown_known_probs
+        return acc_known_top_1, acc_known_top_3, acc_known_top_5, \
+               known_known_known_probs, unknown_unknown_known_probs
 
 
 
@@ -365,30 +382,53 @@ if __name__ == '__main__':
 
     # Option for svm
     if run_svm:
-        svm_acc_known_known, \
+        svm_acc_top1, svm_acc_top3, \
+        svm_acc_top5, \
         unknown_unknown_prob = train_test_svm(train_known_feature=train_known_known_feature,
                                                train_known_labels=train_known_known_label,
                                                test_known_feature=test_known_known_feature,
                                                test_known_labels=test_known_known_label,
-                                               test_unknown_feature=test_unknown_unknown_feature)
+                                               test_unknown_feature=test_unknown_unknown_feature,
+                                               debug=debug)
 
         # SVM post-process for unknown
         svm_acc_unknown_unknown = get_unknown_acc(probs=unknown_unknown_prob,
                                                   threshold=novelty_thresh[-1])
 
+        # Save svm results
+        save_svm_result_path = save_result_dir + "/svm_result.txt"
+
+        with open(save_svm_result_path, 'a') as f:
+            f.write('%0.6f, %0.6f, %0.6f, %0.6f, ' % (svm_acc_top1, svm_acc_top3,
+                                                      svm_acc_top5, svm_acc_unknown_unknown))
+
     # Option for evm
     if run_evm:
         for one_tail in tail_size:
-            known_known_pred, \
+            evm_acc_top1, evm_acc_top3, evm_acc_top5, \
             known_known_known_probs, \
-            unknown_unknown_pred, \
             unknown_unknown_known_probs = train_test_evm(train_known_feature=train_known_known_feature,
                                                            train_known_labels=train_known_known_label,
                                                            test_known_feature=test_known_known_feature,
                                                            test_unknown_feature=test_unknown_unknown_feature,
-                                                           tail_size=one_tail)
+                                                           tail_size=one_tail,
+                                                           debug=debug)
 
-            # TODO: EVM post-process for both known and unknown
+            # EVM post-process for unknown
+            evm_acc_unknown_unknown = get_unknown_acc(probs=unknown_unknown_known_probs,
+                                                      threshold=novelty_thresh[-1])
 
+            # Save EVM results
+            save_evm_result_path = save_result_dir + "/evm_result_tail_size_" + str(one_tail) + ".txt"
 
+            with open(save_evm_result_path, 'a') as f:
+                f.write('%0.6f, %0.6f, %0.6f, %0.6f, ' % (evm_acc_top1, evm_acc_top3,
+                                                          evm_acc_top5, evm_acc_unknown_unknown))
+
+            # Save EVM probs (for potential future use)
+            save_known_prob_path = save_result_dir + "/evm_known_known_known_probs_tail_size" + str(one_tail) + ".npy"
+            save_unknown_prob_path = save_result_dir + "/evm_unknown_unknown_known_probs_tail_size" + str(one_tail) + ".npy"
+
+            np.save(save_known_prob_path, known_known_known_probs)
+            np.save(save_unknown_prob_path, unknown_unknown_known_probs)
 
