@@ -34,10 +34,11 @@ kernel = "linear"
 degree = 3
 c = 1
 tail_size = [10, 100, 1000, 10000]
+percent=50
 
 device = "cuda:0"
 
-run_svm = True
+run_svm = False
 run_evm = True
 
 debug = True
@@ -61,6 +62,9 @@ if debug:
                                         "evm/data/ucf101_ta2/ucf_101_test_unknown_valid_feature.npy"
 
     evm_model_save_path = "/afs/crc.nd.edu/user/j/jhuang24/debug_evm_model.pkl"
+
+    valid_known_known_probs_path = "/afs/crc.nd.edu/user/j/jhuang24/Public/darpa_sail_on/models/msd_net/" \
+                                   "2022-02-13/known_only_cross_entropy/seed_0/features/valid_known_known_epoch_147_probs.npy"
 
 # Data path (our real features)
 else:
@@ -101,6 +105,8 @@ else:
     # Train and test feature path (with epoch index)
     train_known_known_feature_path = known_feature_dir + "/features/train_known_known_" + str(epoch) + "_features.npy"
     train_known_known_label_path = known_feature_dir + "/features/train_known_known_" + str(epoch) + "_labels.npy"
+
+    valid_known_known_probs_path = known_feature_dir + "/features/valid_known_known_" + str(epoch) + "_probs.npy"
 
     test_known_known_feature_path = known_feature_dir + "/features/test_known_known_" + str(epoch) + "_features.npy"
     test_known_known_label_path = known_feature_dir + "/features/test_known_known_" + str(epoch) + "_labels.npy"
@@ -218,6 +224,30 @@ def get_thresholds(npy_file_path,
 
 
 
+def get_unknown_acc(probs,
+                    threshold):
+    """
+
+    :param probs: nb_sample x nb_classes
+    :param threshold:
+    :return:
+    """
+    nb_correct = 0
+
+    for i in range(probs.shape[0]):
+        max_prob = np.max(probs[i])
+
+        if max_prob < threshold:
+            nb_correct += 1
+
+    acc = float(nb_correct)/float(probs.shape[0])
+    print("Test unknown unknown acc: ", acc)
+
+    return acc
+
+
+
+
 def train_test_svm(train_known_feature,
                    train_known_labels,
                    test_known_feature,
@@ -265,6 +295,10 @@ def train_test_evm(train_known_feature,
     :param test_known_feature:
     :param test_unknown_feature:
     :return:
+    """
+    """
+    evm.predict: nb_sample x (nb_class+1)
+    evm.known_probs: nb_sample x nb_class
     """
 
     labels = list(np.unique(train_known_labels))
@@ -325,19 +359,22 @@ def train_test_evm(train_known_feature,
 
 
 if __name__ == '__main__':
-    # TODO: Get threshold for novelty
-
+    # Get threshold for novelty
+    novelty_thresh = get_thresholds(npy_file_path=valid_known_known_probs_path,
+                                    percentile=percent)
 
     # Option for svm
     if run_svm:
-        acc_known_known, \
+        svm_acc_known_known, \
         unknown_unknown_prob = train_test_svm(train_known_feature=train_known_known_feature,
                                                train_known_labels=train_known_known_label,
                                                test_known_feature=test_known_known_feature,
                                                test_known_labels=test_known_known_label,
                                                test_unknown_feature=test_unknown_unknown_feature)
 
-        # TODO: post-process for unknown
+        # SVM post-process for unknown
+        svm_acc_unknown_unknown = get_unknown_acc(probs=unknown_unknown_prob,
+                                                  threshold=novelty_thresh[-1])
 
     # Option for evm
     if run_evm:
@@ -351,7 +388,7 @@ if __name__ == '__main__':
                                                            test_unknown_feature=test_unknown_unknown_feature,
                                                            tail_size=one_tail)
 
-            # TODO: post-process for both known and unknown
+            # TODO: EVM post-process for both known and unknown
 
 
 
