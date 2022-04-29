@@ -30,17 +30,17 @@ from vast.opensetAlgos.extreme_value_machine import ExtremeValueMachine
 ####################################################
 # Parameters
 ####################################################
-kernel = "poly"
+kernel = "linear"
 degree = 3
 c = 1
+tail_size = [10, 100, 1000, 10000]
 
 device = "cuda:0"
 
-train_test_svm = True
-train_test_evm = False
+run_svm = True
+run_evm = True
 
 debug = True
-
 
 ####################################################
 # Data paths
@@ -107,21 +107,9 @@ else:
 
     test_unknown_unknown_feature_path = unknown_feature_dir + "/test_unknown_unknown_features.npy"
 
-    # Paths to save results
-    save_svm_txt_path = unknown_feature_dir + "/svm_result.txt"
-    save_evm_txt_path = unknown_feature_dir + "/evm_result.txt"
+    # Paths to save EVM model and all results
+    save_result_dir = unknown_feature_dir
 
-    # Save paths for SVM
-    unknown_unknown_prob_save_path = unknown_feature_dir + "/svm_test_ukuk_prob.npy"
-
-    # Save probs from EVM
-    evm_model_save_path = unknown_feature_dir + "/evm_model.pkl"
-
-    known_known_pred_path = unknown_feature_dir + "/known_known_pred.npy"
-    known_known_known_probs_path = unknown_feature_dir + "/known_known_known_probs.npy"
-
-    unknown_unknown_pred_path = unknown_feature_dir + "/unknown_unknown_pred.npy"
-    unknown_unknown_known_probs_path = unknown_feature_dir + "/unknown_unknown_known_probs.npy"
 
 
 #####################################################
@@ -129,12 +117,6 @@ else:
 #####################################################
 train_known_known_feature = np.load(train_known_known_feature_path)
 train_known_known_label = np.load(train_known_known_label_path)
-
-train_features = train_known_known_feature
-train_labels = train_known_known_label
-
-print("train_features", train_features.shape)
-print("train_labels", train_labels.shape)
 
 test_known_known_feature = np.load(test_known_known_feature_path)
 test_known_known_label = np.load(test_known_known_label_path)
@@ -163,6 +145,9 @@ if debug:
     train_known_known_label = train_known_known_label[:100]
     test_known_known_label = test_known_known_label[:100]
 
+else:
+    pass
+    # TODO: for the real features, only consider exit 5
 
 
 print("Train known known:", train_known_known_feature.shape, train_known_known_label.shape)
@@ -171,74 +156,122 @@ print("Test unknown unknown:", test_unknown_unknown_feature.shape)
 
 
 ####################################################
-# TODO: PCA??
+# TODO: PCA?? (TBD)
 ####################################################
 
 
 
-
-
-
 ####################################################
-# SVM
+# Getting threshold
 ####################################################
-if train_test_svm:
-    # Define a SVM using scikit-learn and train/fit it
+def get_thresholds(npy_file_path,
+                   percentile):
+    """
+    Get the probability thresholds for 5 exits respectively.
+
+    :param npy_file_path:
+    :return:
+    """
+    prob_clf_0 = []
+    prob_clf_1 = []
+    prob_clf_2 = []
+    prob_clf_3 = []
+    prob_clf_4 = []
+
+
+    # Load npy file and check the shape
+    probs = np.load(npy_file_path)
+    print(probs.shape) # Shape [nb_samples, nb_clfs, nb_classes]
+
+    # Process each sample
+    for i in range(probs.shape[0]):
+        one_sample_probs = probs[i, :, :]
+        one_sample_probs = np.reshape(one_sample_probs,(probs.shape[1],
+                                                        probs.shape[2]))
+
+        # Check each classifier in each sample
+        for j in range(one_sample_probs.shape[0]):
+            one_clf_probs = one_sample_probs[j, :]
+
+            # Find the max prob
+            max_prob = np.max(one_clf_probs)
+
+            if j == 0:
+                prob_clf_0.append(max_prob)
+            elif j == 1:
+                prob_clf_1.append(max_prob)
+            elif j == 2:
+                prob_clf_2.append(max_prob)
+            elif j == 3:
+                prob_clf_3.append(max_prob)
+            elif j == 4:
+                prob_clf_4.append(max_prob)
+
+    thresh_0 = np.percentile(np.asarray(prob_clf_0), percentile)
+    thresh_1 = np.percentile(np.asarray(prob_clf_1), percentile)
+    thresh_2 = np.percentile(np.asarray(prob_clf_2), percentile)
+    thresh_3 = np.percentile(np.asarray(prob_clf_3), percentile)
+    thresh_4 = np.percentile(np.asarray(prob_clf_4), percentile)
+
+    return [thresh_0, thresh_1, thresh_2, thresh_3, thresh_4]
+
+
+
+
+def train_test_svm(train_known_feature,
+                   train_known_labels,
+                   test_known_feature,
+                   test_known_labels,
+                   test_unknown_feature):
+    """
+
+    :param train_known_feature:
+    :param test_known_feature:
+    :param test_unknown_feature:
+    :param unknown_thresholds:
+    :param debug:
+    :return:
+    """
     print("Training SVM...")
-
-    if debug:
-        features = train_known_known_feature
-        labels = train_known_known_label
-    else:
-        features = train_features
-        labels = train_labels
-
-
     svm_model = svm.SVC(kernel=kernel,
                         degree=degree,
                         C=c,
-                        probability=True).fit(features, labels)
+                        probability=True).fit(train_known_feature, train_known_labels)
 
     # Test SVM
     print("Testing SVM...")
 
     # For known_known classes, using predict is enough
-    pred_known_known = svm_model.predict(test_known_known_feature)
-    acc_known_known = accuracy_score(test_known_known_label, pred_known_known)
+    pred_known_known = svm_model.predict(test_known_feature)
+    unknown_unknown_prob = svm_model.predict_proba(test_unknown_feature)
+
+    acc_known_known = accuracy_score(test_known_labels, pred_known_known)
     print("Test known known accuracy:", acc_known_known)
 
-    # For known_unknown and unknown_unknown save the probability
-    if debug:
-        known_unknown_prob = svm_model.predict_proba(test_known_known_feature)
-        unknown_unknown_prob = svm_model.predict_proba(test_known_known_feature)
-        # print(known_unknown_prob) # 100*2 list (nb_sample*nb_class)
-
-        known_unknown_prob_np = np.asarray(known_unknown_prob)
-        print(known_unknown_prob_np.shape)
-
-    else:
-        unknown_unknown_prob = svm_model.predict_proba(test_unknown_unknown_feature)
-
-        # save probability as npy
-        np.save(unknown_unknown_prob, unknown_unknown_prob_save_path)
+    return acc_known_known, unknown_unknown_prob
 
 
-####################################################
-# EVM
-####################################################
-if train_test_evm:
-    # Define the labels for EVM
-    if debug:
-        labels = list(np.unique(train_known_known_label))
 
-    else:
-        labels = list(np.unique(train_labels))
 
-    print("Labels", labels)
+def train_test_evm(train_known_feature,
+                   train_known_labels,
+                   test_known_feature,
+                   test_unknown_feature,
+                   tail_size):
+    """
+
+    :param train_known_feature:
+    :param train_known_labels:
+    :param test_known_feature:
+    :param test_unknown_feature:
+    :return:
+    """
+
+    labels = list(np.unique(train_known_labels))
 
     # Define EVM
-    print("Create EVM")
-    evm = ExtremeValueMachine(tail_size=10,
+    print("Creating EVM... Current tail size is %d" % tail_size)
+    evm = ExtremeValueMachine(tail_size=tail_size,
             cover_threshold=0.5,
             distance_multiplier=1.0,
             labels=labels,
@@ -249,64 +282,76 @@ if train_test_evm:
 
     # Train(fit) EVM
     print("Training EVM")
-
-    # if os.path.exists()
-    # model_path = "/afs/crc.nd.edu/user/j/jhuang24/scratch_51/open_set/models/cvpr/" \
-    #              "2021-10-24/cross_entropy_only/seed_0/evm_model.pkl"
-    # evm.load(model_path)
-
-    if debug:
-        evm.fit(train_known_known_feature, train_known_known_label)
-    else:
-        evm.fit(train_features, train_labels)
+    evm.fit(train_known_feature, train_known_labels)
 
     # Save EVM model, so no need to retrain
     print("Saving EVM model")
     evm.save(evm_model_save_path)
 
+    print(test_known_feature.shape)
+
+
     # Test EVM
     print("Testing EVM")
 
-    if debug:
-        # For the debugging set, we only have known known
-        test_known_known_feature = torch.from_numpy(test_known_known_feature).float()
+    # Convert data type
+    test_known_known_feature = torch.from_numpy(test_known_feature).float()
+    test_unknown_unknown_feature = torch.from_numpy(test_unknown_feature).float()
 
-        known_known_pred = evm.predict(test_known_known_feature)
-        known_known_known_probs = evm.known_probs(test_known_known_feature)
+    # Known known
+    print("Testing known known")
 
-        known_known_pred = known_known_pred.cpu().detach().numpy()
-        known_known_known_probs = known_known_known_probs.cpu().detach().numpy()
+    known_known_pred = evm.predict(test_known_known_feature)
+    known_known_known_probs = evm.known_probs(test_known_known_feature)
 
-        print("known_known_pred", known_known_pred.shape)
-        print("known_known_known_probs", known_known_known_probs.shape)
+    known_known_pred = known_known_pred.cpu().detach().numpy()
+    known_known_known_probs = known_known_known_probs.cpu().detach().numpy()
 
-    else:
-        # Testing all 3 categories
-        test_known_known_feature = torch.from_numpy(test_known_known_feature).float()
-        test_unknown_unknown_feature = torch.from_numpy(test_unknown_unknown_feature).float()
+    print("known_known_pred", known_known_pred.shape)
+    print("known_known_known_probs", known_known_known_probs.shape)
 
-        # Known known
-        print("Testing known known")
-        known_known_pred = evm.predict(test_known_known_feature)
-        known_known_known_probs = evm.known_probs(test_known_known_feature)
-        known_known_pred = known_known_pred.cpu().detach().numpy()
-        known_known_known_probs = known_known_known_probs.cpu().detach().numpy()
+    # unknown unknown
+    unknown_unknown_pred = evm.predict(test_unknown_unknown_feature)
+    unknown_unknown_known_probs = evm.known_probs(test_unknown_unknown_feature)
+    unknown_unknown_pred = unknown_unknown_pred.cpu().detach().numpy()
+    unknown_unknown_known_probs = unknown_unknown_known_probs.cpu().detach().numpy()
 
-        print(known_known_pred.shape)
-        print(known_known_known_probs.shape)
+    print("unknown_unknown_pred", unknown_unknown_pred.shape)
+    print("unknown_unknown_known_probs", unknown_unknown_known_probs.shape)
 
-        np.save(known_known_pred_path, known_known_pred)
-        np.save(known_known_known_probs_path, known_known_known_probs)
+    return known_known_pred, known_known_known_probs, unknown_unknown_pred, unknown_unknown_known_probs
 
-        # unknown unknown
-        unknown_unknown_pred = evm.predict(test_unknown_unknown_feature)
-        unknown_unknown_known_probs = evm.known_probs(test_unknown_unknown_feature)
-        unknown_unknown_pred = unknown_unknown_pred.cpu().detach().numpy()
-        unknown_unknown_known_probs = unknown_unknown_known_probs.cpu().detach().numpy()
 
-        print(unknown_unknown_pred.shape)
-        print(unknown_unknown_known_probs.shape)
 
-        np.save(unknown_unknown_pred_path, unknown_unknown_pred)
-        np.save(unknown_unknown_known_probs_path, unknown_unknown_known_probs)
+
+if __name__ == '__main__':
+    # TODO: Get threshold for novelty
+
+
+    # Option for svm
+    if run_svm:
+        acc_known_known, \
+        unknown_unknown_prob = train_test_svm(train_known_feature=train_known_known_feature,
+                                               train_known_labels=train_known_known_label,
+                                               test_known_feature=test_known_known_feature,
+                                               test_known_labels=test_known_known_label,
+                                               test_unknown_feature=test_unknown_unknown_feature)
+
+        # TODO: post-process for unknown
+
+    # Option for evm
+    if run_evm:
+        for one_tail in tail_size:
+            known_known_pred, \
+            known_known_known_probs, \
+            unknown_unknown_pred, \
+            unknown_unknown_known_probs = train_test_evm(train_known_feature=train_known_known_feature,
+                                                           train_known_labels=train_known_known_label,
+                                                           test_known_feature=test_known_known_feature,
+                                                           test_unknown_feature=test_unknown_unknown_feature,
+                                                           tail_size=one_tail)
+
+            # TODO: post-process for both known and unknown
+
+
 

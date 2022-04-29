@@ -196,7 +196,7 @@ class ExtremeValueMachine(SupervisedClassifier):
         distance_metric="cosine",
         chunk_size=200,
         tail_size_is_ratio=True,
-        dtype=torch.double,
+        dtype=torch.float,
         *args,
         **kwargs,
     ):
