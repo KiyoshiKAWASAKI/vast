@@ -1,24 +1,11 @@
 # Training and testing SVM and EVM using generated network features
 
-
-from sklearn import svm
-from sklearn.decomposition import PCA
-from sklearn.metrics import confusion_matrix
+import os
 import numpy as np
 import torch
-# import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA, IncrementalPCA
-# import matplotlib.pyplot as plt
-import h5py
-from sklearn.decomposition import IncrementalPCA
-
 from sklearn import svm, datasets
-import sklearn.model_selection as model_selection
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import f1_score
-import sys
-import os
 from sklearn.metrics import top_k_accuracy_score
 
 # EVM
@@ -35,14 +22,15 @@ kernel = "linear"
 degree = 3
 c = 1
 tail_size = [10, 100, 1000, 10000]
-percent=50
+percent = 50
+pca_ratio = 0.99
 
 device = "cuda:0"
 
 run_svm = False
 run_evm = True
 
-debug = False
+debug = True
 
 ####################################################
 # Data paths
@@ -60,7 +48,7 @@ if debug:
                                   "evm/data/ucf101_ta2/ucf_101_test_known_valid_label.npy"
 
     test_known_known_feature = np.load(test_known_known_feature_path)
-    test_known_known_labels = np.load(test_known_known_label_path)
+    test_known_known_label = np.load(test_known_known_label_path)
 
     test_unknown_unknown_feature_path = "/afs/crc.nd.edu/user/j/jhuang24/scratch_51/kitware_internship/" \
                                         "evm/data/ucf101_ta2/ucf_101_test_unknown_valid_feature.npy"
@@ -109,7 +97,11 @@ else:
     train_known_known_feature_path = known_feature_dir + "/features/train_known_known_epoch_" + str(epoch) + "_features.npy"
     train_known_known_label_path = known_feature_dir + "/features/train_known_known_epoch_" + str(epoch) + "_labels.npy"
 
-    valid_known_known_probs_path = known_feature_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_probs.npy"
+    valid_known_known_feature_path = known_feature_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_features.npy"
+    valid_known_known_label_path = known_feature_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_labels.npy"
+
+    valid_known_known_feature = np.load(valid_known_known_feature_path)
+    valid_known_known_label = np.load(valid_known_known_label_path)
 
     test_known_known_feature_path_p0 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_0_features.npy"
     test_known_known_label_path_p0 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_0_labels.npy"
@@ -135,7 +127,7 @@ else:
 
     test_known_known_feature = np.concatenate((test_known_known_feat_p0, test_known_known_feat_p1,
                                              test_known_known_feat_p2, test_known_known_feat_p3), axis=0)
-    test_known_known_labels = np.concatenate((test_known_known_labels_p0, test_known_known_labels_p1,
+    test_known_known_label = np.concatenate((test_known_known_labels_p0, test_known_known_labels_p1,
                                               test_known_known_labels_p2, test_known_known_labels_p3), axis=0)
 
     # Paths to save EVM model, EVM probs and results
@@ -147,9 +139,7 @@ else:
 #####################################################
 train_known_known_feature = np.load(train_known_known_feature_path)
 train_known_known_label = np.load(train_known_known_label_path)
-
 test_unknown_unknown_feature = np.load(test_unknown_unknown_feature_path)
-
 
 if debug:
     train_known_known_feature = np.reshape(train_known_known_feature,
@@ -165,19 +155,21 @@ if debug:
                                               test_unknown_unknown_feature.shape[1] * test_unknown_unknown_feature.shape[2]))
 
     # For testing, just get 100 samples
-    train_known_known_feature = train_known_known_feature[:100]
+    train_known_known_feature = train_known_known_feature[:500]
+    valid_known_known_feature = train_known_known_feature
     test_known_known_feature = test_known_known_feature[:30]
     test_unknown_unknown_feature = test_unknown_unknown_feature[:100]
 
-    train_known_known_label = train_known_known_label[:100]
-    test_known_known_label = test_known_known_labels[:30]
+    train_known_known_label = train_known_known_label[:500]
+    valid_known_known_label = train_known_known_label
+    test_known_known_label = test_known_known_label[:30]
 
 else:
     pass
-    # TODO: for the real features, only consider exit 5
 
 
 print("Train known known:", train_known_known_feature.shape, train_known_known_label.shape)
+print("Valid known known", valid_known_known_feature.shape, valid_known_known_label.shape)
 print("Test known known:", test_known_known_feature.shape, test_known_known_label.shape)
 print("Test unknown unknown:", test_unknown_unknown_feature.shape)
 
@@ -185,7 +177,23 @@ print("Test unknown unknown:", test_unknown_unknown_feature.shape)
 ####################################################
 # TODO: PCA
 ####################################################
+sc = StandardScaler()
+pca = PCA(n_components=pca_ratio)
 
+train_feature_scaled = sc.fit_transform(train_known_known_feature)
+valid_feature_scaled = sc.fit_transform(valid_known_known_feature)
+test_known_feature_scaled = sc.fit_transform(test_known_known_feature)
+test_unknown_feature_scaled = sc.fit_transform(test_unknown_unknown_feature)
+
+train_feature_reduced = pca.fit_transform(train_feature_scaled)
+valid_feature_reduced = pca.fit_transform(valid_feature_scaled)
+test_known_feature_reduced = pca.fit_transform(test_known_feature_scaled)
+test_unknown_feature_reduced = pca.fit_transform(test_unknown_feature_scaled)
+
+print("train_feature_reduced", train_feature_reduced.shape)
+print("valid_feature_reduced", valid_feature_reduced.shape)
+print("test_known_feature_reduced", test_known_feature_reduced.shape)
+print("test_unknown_feature_reduced", test_unknown_feature_reduced.shape)
 
 
 ####################################################
@@ -282,6 +290,8 @@ def get_known_acc(known_probs):
 
 def train_test_svm(train_known_feature,
                    train_known_labels,
+                   valid_known_feature,
+                   valid_known_label,
                    test_known_feature,
                    test_known_labels,
                    test_unknown_feature,
@@ -289,9 +299,12 @@ def train_test_svm(train_known_feature,
     """
 
     :param train_known_feature:
+    :param train_known_labels:
+    :param valid_known_feature:
+    :param valid_known_label:
     :param test_known_feature:
+    :param test_known_labels:
     :param test_unknown_feature:
-    :param unknown_thresholds:
     :param debug:
     :return:
     """
@@ -405,11 +418,11 @@ if __name__ == '__main__':
     if run_svm:
         svm_acc_top1, svm_acc_top3, \
         svm_acc_top5, \
-        unknown_unknown_prob = train_test_svm(train_known_feature=train_known_known_feature,
+        unknown_unknown_prob = train_test_svm(train_known_feature=train_feature_reduced,
                                                train_known_labels=train_known_known_label,
-                                               test_known_feature=test_known_known_feature,
+                                               test_known_feature=test_known_feature_reduced,
                                                test_known_labels=test_known_known_label,
-                                               test_unknown_feature=test_unknown_unknown_feature,
+                                               test_unknown_feature=test_unknown_feature_reduced,
                                                debug=debug)
 
         # SVM post-process for unknown
@@ -429,10 +442,10 @@ if __name__ == '__main__':
         for one_tail in tail_size:
             evm_acc_top1, evm_acc_top3, evm_acc_top5, \
             known_known_known_probs, \
-            unknown_unknown_known_probs = train_test_evm(train_known_feature=train_known_known_feature,
+            unknown_unknown_known_probs = train_test_evm(train_known_feature=train_feature_reduced,
                                                            train_known_labels=train_known_known_label,
-                                                           test_known_feature=test_known_known_feature,
-                                                           test_unknown_feature=test_unknown_unknown_feature,
+                                                           test_known_feature=test_known_feature_reduced,
+                                                           test_unknown_feature=test_unknown_feature_reduced,
                                                            tail_size=one_tail,
                                                            debug=debug)
 
