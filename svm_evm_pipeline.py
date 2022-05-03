@@ -99,6 +99,7 @@ else:
 
     valid_known_known_feature_path = known_feature_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_features.npy"
     valid_known_known_label_path = known_feature_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_labels.npy"
+    valid_known_known_probs_path = known_feature_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_probs.npy"
 
     valid_known_known_feature = np.load(valid_known_known_feature_path)
     valid_known_known_label = np.load(valid_known_known_label_path)
@@ -291,7 +292,7 @@ def get_known_acc(known_probs):
 def train_test_svm(train_known_feature,
                    train_known_labels,
                    valid_known_feature,
-                   valid_known_label,
+                   valid_known_labels,
                    test_known_feature,
                    test_known_labels,
                    test_unknown_feature,
@@ -318,28 +319,41 @@ def train_test_svm(train_known_feature,
     print("Testing SVM...")
 
     # For known_known classes, using predict is enough
+    pred_valid = svm_model.predict(valid_known_feature)
     pred_known_known = svm_model.predict(test_known_feature)
     unknown_unknown_prob = svm_model.predict_proba(test_unknown_feature)
 
 
     if debug:
-        acc_known_top_1 = top_k_accuracy_score(test_known_labels, pred_known_known, k=1)
+        valid_acc_known_top_1 = top_k_accuracy_score(valid_known_labels, pred_valid, k=1)
+        test_acc_known_top_1 = top_k_accuracy_score(test_known_labels, pred_known_known, k=1)
 
-        return acc_known_top_1, 0.000, 0.000, unknown_unknown_prob
+        return valid_acc_known_top_1, 0.000, 0.000, \
+               test_acc_known_top_1, 0.000, 0.000, \
+               unknown_unknown_prob
 
     else:
-        acc_known_top_1 = top_k_accuracy_score(test_known_labels, pred_known_known, k=1)
-        acc_known_top_3 = top_k_accuracy_score(test_known_labels, pred_known_known, k=3)
-        acc_known_top_5 = top_k_accuracy_score(test_known_labels, pred_known_known, k=5)
+        valid_acc_known_top_1 = top_k_accuracy_score(valid_known_labels, pred_valid, k=1)
+        valid_acc_known_top_3 = top_k_accuracy_score(valid_known_labels, pred_valid, k=3)
+        valid_acc_known_top_5 = top_k_accuracy_score(valid_known_labels, pred_valid, k=5)
 
-        return acc_known_top_1, acc_known_top_3, acc_known_top_5, unknown_unknown_prob
+        test_acc_known_top_1 = top_k_accuracy_score(test_known_labels, pred_known_known, k=1)
+        test_acc_known_top_3 = top_k_accuracy_score(test_known_labels, pred_known_known, k=3)
+        test_acc_known_top_5 = top_k_accuracy_score(test_known_labels, pred_known_known, k=5)
+
+        return valid_acc_known_top_1, valid_acc_known_top_3, valid_acc_known_top_5,\
+               test_acc_known_top_1, test_acc_known_top_3, test_acc_known_top_5, \
+               unknown_unknown_prob
 
 
 
 
 def train_test_evm(train_known_feature,
                    train_known_labels,
+                   valid_known_feature,
+                   valid_known_labels,
                    test_known_feature,
+                   test_known_labels,
                    test_unknown_feature,
                    tail_size,
                    debug):
@@ -381,30 +395,41 @@ def train_test_evm(train_known_feature,
     # print(test_known_feature.shape)
 
     # Convert data type
+    valid_known_known_feature = torch.from_numpy(valid_known_feature).float()
     test_known_known_feature = torch.from_numpy(test_known_feature).float()
     test_unknown_unknown_feature = torch.from_numpy(test_unknown_feature).float()
 
     # Test EVM
     print("Testing EVM")
-    known_known_known_probs = evm.known_probs(test_known_known_feature).cpu().detach().numpy()
+    valid_known_known_known_probs = evm.known_probs(valid_known_known_feature).cpu().detach().numpy()
+    test_known_known_known_probs = evm.known_probs(test_known_known_feature).cpu().detach().numpy()
     unknown_unknown_known_probs = evm.known_probs(test_unknown_unknown_feature).cpu().detach().numpy()
 
     # Get predictions
-    pred_labels = np.argmax(known_known_known_probs, axis=1)
+    valid_pred_labels = np.argmax(valid_known_known_known_probs, axis=1)
+    test_pred_labels = np.argmax(test_known_known_known_probs, axis=1)
 
     # Known accuracy
     if debug:
-        acc_known_top_1 = top_k_accuracy_score(test_known_known_label, pred_labels, k=1)
+        valid_acc_known_top_1 = top_k_accuracy_score(valid_known_labels, valid_pred_labels, k=1)
+        test_acc_known_top_1 = top_k_accuracy_score(test_known_labels, test_pred_labels, k=1)
 
-        return acc_known_top_1, 0.000, 0.000, known_known_known_probs, unknown_unknown_known_probs
+        return valid_acc_known_top_1, 0.000, 0.000,\
+               test_acc_known_top_1, 0.000, 0.000, \
+               test_known_known_known_probs, unknown_unknown_known_probs
 
     else:
-        acc_known_top_1 = top_k_accuracy_score(test_known_known_label, pred_labels, k=1)
-        acc_known_top_3 = top_k_accuracy_score(test_known_known_label, pred_labels, k=3)
-        acc_known_top_5 = top_k_accuracy_score(test_known_known_label, pred_labels, k=5)
+        valid_acc_known_top_1 = top_k_accuracy_score(valid_known_labels, valid_pred_labels, k=1)
+        valid_acc_known_top_3 = top_k_accuracy_score(valid_known_labels, valid_pred_labels, k=3)
+        valid_acc_known_top_5 = top_k_accuracy_score(valid_known_labels, valid_pred_labels, k=5)
 
-        return acc_known_top_1, acc_known_top_3, acc_known_top_5, \
-               known_known_known_probs, unknown_unknown_known_probs
+        test_acc_known_top_1 = top_k_accuracy_score(test_known_labels, test_pred_labels, k=1)
+        test_acc_known_top_3 = top_k_accuracy_score(test_known_labels, test_pred_labels, k=3)
+        test_acc_known_top_5 = top_k_accuracy_score(test_known_labels, test_pred_labels, k=5)
+
+        return valid_acc_known_top_1, valid_acc_known_top_3,  valid_acc_known_top_5, \
+               test_acc_known_top_1, test_acc_known_top_3, test_acc_known_top_5, \
+               valid_known_known_known_probs, test_known_known_known_probs, unknown_unknown_known_probs
 
 
 
@@ -416,14 +441,16 @@ if __name__ == '__main__':
 
     # Option for svm
     if run_svm:
-        svm_acc_top1, svm_acc_top3, \
-        svm_acc_top5, \
-        unknown_unknown_prob = train_test_svm(train_known_feature=train_feature_reduced,
-                                               train_known_labels=train_known_known_label,
-                                               test_known_feature=test_known_feature_reduced,
-                                               test_known_labels=test_known_known_label,
-                                               test_unknown_feature=test_unknown_feature_reduced,
-                                               debug=debug)
+        svm_valid_top_1, svm_valid_top_3, \
+        svm_valid_top_5, svm_test_top_1, \
+        svm_test_top_3, svm_test_top_5, unknown_unknown_prob = train_test_svm(train_known_feature=train_feature_reduced,
+                                                                              train_known_labels=train_known_known_label,
+                                                                              valid_known_feature=valid_feature_reduced,
+                                                                              valid_known_labels=valid_known_known_label,
+                                                                               test_known_feature=test_known_feature_reduced,
+                                                                               test_known_labels=test_known_known_label,
+                                                                               test_unknown_feature=test_unknown_feature_reduced,
+                                                                               debug=debug)
 
         # SVM post-process for unknown
         svm_acc_unknown_unknown = get_unknown_acc(probs=unknown_unknown_prob,
@@ -433,9 +460,14 @@ if __name__ == '__main__':
         save_svm_result_path = save_result_dir + "/svm_" + kernel + "_degree_" + str(degree) + \
                                "_c_" + str(c) + ".txt"
 
+        print(svm_valid_top_1, svm_valid_top_3, svm_valid_top_5,
+              svm_test_top_1, svm_test_top_3, svm_test_top_5,
+              svm_acc_unknown_unknown)
+
         with open(save_svm_result_path, 'a') as f:
-            f.write('%0.6f, %0.6f, %0.6f, %0.6f, ' % (svm_acc_top1, svm_acc_top3,
-                                                      svm_acc_top5, svm_acc_unknown_unknown))
+            f.write('%0.6f, %0.6f, %0.6f, %0.6f, %0.6f, %0.6f, %0.6f, ' %
+                    (svm_valid_top_1, svm_valid_top_3, svm_valid_top_5,
+                     svm_test_top_1, svm_test_top_3, svm_test_top_5, svm_acc_unknown_unknown))
 
     # Option for evm
     if run_evm:
