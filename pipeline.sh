@@ -4,7 +4,7 @@
 #$ -m abe
 #$ -q gpu -l gpu=1
 #$ -l h=!qa-rtx6k-044
-#$ -N evm_ce_seed0
+#$ -N evm_ce_s0
 
 # Required modules
 module load conda

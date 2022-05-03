@@ -39,10 +39,10 @@ percent=50
 
 device = "cuda:0"
 
-run_svm = True
+run_svm = False
 run_evm = True
 
-debug = True
+debug = False
 
 ####################################################
 # Data paths
@@ -58,6 +58,9 @@ if debug:
                                     "evm/data/ucf101_ta2/ucf_101_test_known_valid_feature.npy"
     test_known_known_label_path = "/afs/crc.nd.edu/user/j/jhuang24/scratch_51/kitware_internship/" \
                                   "evm/data/ucf101_ta2/ucf_101_test_known_valid_label.npy"
+
+    test_known_known_feature = np.load(test_known_known_feature_path)
+    test_known_known_labels = np.load(test_known_known_label_path)
 
     test_unknown_unknown_feature_path = "/afs/crc.nd.edu/user/j/jhuang24/scratch_51/kitware_internship/" \
                                         "evm/data/ucf101_ta2/ucf_101_test_unknown_valid_feature.npy"
@@ -97,22 +100,43 @@ else:
     # model_dir, epoch = "2022-03-30/cross_entropy_1.0_exit_1.0_unknown_ratio_1.0/seed_3", 128
     # model_dir, epoch = "2022-03-30/cross_entropy_1.0_exit_1.0_unknown_ratio_1.0/seed_4", 110
 
-    known_feature_base = "/afs/crc.nd.edu/user/j/jhuang24/Public/darpa_sail_on/models/msd_net"
-    unknown_feature_base = "/afs/crc.nd.edu/user/j/jhuang24/scratch_50/jhuang24/models/msd_net"
+    feature_base = "/afs/crc.nd.edu/user/j/jhuang24/scratch_50/jhuang24/models/msd_net"
 
-    known_feature_dir = os.path.join(known_feature_base, model_dir)
-    unknown_feature_dir = os.path.join(unknown_feature_base, model_dir)
+    known_feature_dir = os.path.join(feature_base, model_dir)
+    unknown_feature_dir = os.path.join(feature_base, model_dir)
 
     # Train and test feature path (with epoch index)
-    train_known_known_feature_path = known_feature_dir + "/features/train_known_known_" + str(epoch) + "_features.npy"
-    train_known_known_label_path = known_feature_dir + "/features/train_known_known_" + str(epoch) + "_labels.npy"
+    train_known_known_feature_path = known_feature_dir + "/features/train_known_known_epoch_" + str(epoch) + "_features.npy"
+    train_known_known_label_path = known_feature_dir + "/features/train_known_known_epoch_" + str(epoch) + "_labels.npy"
 
-    valid_known_known_probs_path = known_feature_dir + "/features/valid_known_known_" + str(epoch) + "_probs.npy"
+    valid_known_known_probs_path = known_feature_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_probs.npy"
 
-    test_known_known_feature_path = known_feature_dir + "/features/test_known_known_" + str(epoch) + "_features.npy"
-    test_known_known_label_path = known_feature_dir + "/features/test_known_known_" + str(epoch) + "_labels.npy"
+    test_known_known_feature_path_p0 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_0_features.npy"
+    test_known_known_label_path_p0 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_0_labels.npy"
+    test_known_known_feat_p0 = np.load(test_known_known_feature_path_p0)
+    test_known_known_labels_p0 = np.load(test_known_known_label_path_p0)
 
-    test_unknown_unknown_feature_path = unknown_feature_dir + "/test_unknown_unknown_features.npy"
+    test_known_known_feature_path_p1 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_1_features.npy"
+    test_known_known_label_path_p1 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_1_labels.npy"
+    test_known_known_feat_p1 = np.load(test_known_known_feature_path_p1)
+    test_known_known_labels_p1 = np.load(test_known_known_label_path_p1)
+
+    test_known_known_feature_path_p2 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_2_features.npy"
+    test_known_known_label_path_p2 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_2_labels.npy"
+    test_known_known_feat_p2 = np.load(test_known_known_feature_path_p2)
+    test_known_known_labels_p2 = np.load(test_known_known_label_path_p2)
+
+    test_known_known_feature_path_p3 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_3_features.npy"
+    test_known_known_label_path_p3 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_0_labels.npy"
+    test_known_known_feat_p3 = np.load(test_known_known_feature_path_p3)
+    test_known_known_labels_p3 = np.load(test_known_known_label_path_p3)
+
+    test_unknown_unknown_feature_path = unknown_feature_dir + "/test_unknown_unknown_epoch_" + str(epoch) +"_features.npy"
+
+    test_known_known_feature = np.concatenate((test_known_known_feat_p0, test_known_known_feat_p1,
+                                             test_known_known_feat_p2, test_known_known_feat_p3), axis=0)
+    test_known_known_labels = np.concatenate((test_known_known_labels_p0, test_known_known_labels_p1,
+                                              test_known_known_labels_p2, test_known_known_labels_p3), axis=0)
 
     # Paths to save EVM model, EVM probs and results
     save_result_dir = unknown_feature_dir
@@ -123,9 +147,6 @@ else:
 #####################################################
 train_known_known_feature = np.load(train_known_known_feature_path)
 train_known_known_label = np.load(train_known_known_label_path)
-
-test_known_known_feature = np.load(test_known_known_feature_path)
-test_known_known_label = np.load(test_known_known_label_path)
 
 test_unknown_unknown_feature = np.load(test_unknown_unknown_feature_path)
 
@@ -149,7 +170,7 @@ if debug:
     test_unknown_unknown_feature = test_unknown_unknown_feature[:100]
 
     train_known_known_label = train_known_known_label[:100]
-    test_known_known_label = test_known_known_label[:30]
+    test_known_known_label = test_known_known_labels[:30]
 
 else:
     pass
@@ -162,7 +183,7 @@ print("Test unknown unknown:", test_unknown_unknown_feature.shape)
 
 
 ####################################################
-# TODO: PCA?? (TBD)
+# TODO: PCA
 ####################################################
 
 
@@ -344,7 +365,7 @@ def train_test_evm(train_known_feature,
     print("Saving EVM model")
     evm.save(evm_model_save_path)
 
-    print(test_known_feature.shape)
+    # print(test_known_feature.shape)
 
     # Convert data type
     test_known_known_feature = torch.from_numpy(test_known_feature).float()
@@ -396,7 +417,8 @@ if __name__ == '__main__':
                                                   threshold=novelty_thresh[-1])
 
         # Save svm results
-        save_svm_result_path = save_result_dir + "/svm_result.txt"
+        save_svm_result_path = save_result_dir + "/svm_" + kernel + "_degree_" + str(degree) + \
+                               "_c_" + str(c) + ".txt"
 
         with open(save_svm_result_path, 'a') as f:
             f.write('%0.6f, %0.6f, %0.6f, %0.6f, ' % (svm_acc_top1, svm_acc_top3,

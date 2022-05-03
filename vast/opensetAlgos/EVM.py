@@ -248,7 +248,7 @@ def EVM_Training(
         assert torch.allclose(
             positive_distances[e].type(torch.FloatTensor),
             torch.zeros(positive_distances.shape[0]),
-            atol=1e-06,
+            atol=1e-05,
         ), "Distances of samples to themselves is not zero. This may be due to a precision issue, try increasing the atol value from 1e-06 to 1e-05."
 
         for distance_multiplier, cover_threshold, org_tailsize in itertools.product(
