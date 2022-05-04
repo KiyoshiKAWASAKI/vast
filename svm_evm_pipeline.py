@@ -1,6 +1,6 @@
 # Training and testing SVM and EVM using generated network features
 
-import os
+import time
 import numpy as np
 import torch
 from sklearn.preprocessing import StandardScaler
@@ -27,10 +27,12 @@ pca_ratio = 0.99
 
 device = "cuda:0"
 
-run_svm = False
-run_evm = True
+run_svm = True
+run_evm = False
 
-debug = True
+debug = False
+
+start = time.time()
 
 ####################################################
 # Data paths
@@ -88,51 +90,61 @@ else:
     # model_dir, epoch = "2022-03-30/cross_entropy_1.0_exit_1.0_unknown_ratio_1.0/seed_3", 128
     # model_dir, epoch = "2022-03-30/cross_entropy_1.0_exit_1.0_unknown_ratio_1.0/seed_4", 110
 
-    feature_base = "/afs/crc.nd.edu/user/j/jhuang24/scratch_50/jhuang24/models/msd_net"
-
-    known_feature_dir = os.path.join(feature_base, model_dir)
-    unknown_feature_dir = os.path.join(feature_base, model_dir)
+    feature_base_scratch = "/afs/crc.nd.edu/user/j/jhuang24/scratch_50/jhuang24/models/msd_net"
+    feature_base_home = "/afs/crc.nd.edu/user/j/jhuang24/Public/darpa_sail_on/models/msd_net"
 
     # Train and test feature path (with epoch index)
-    train_known_known_feature_path = known_feature_dir + "/features/train_known_known_epoch_" + str(epoch) + "_features.npy"
-    train_known_known_label_path = known_feature_dir + "/features/train_known_known_epoch_" + str(epoch) + "_labels.npy"
+    train_known_known_feature_path = feature_base_home + "/" + model_dir + "/features/train_known_known_epoch_" + str(epoch) + "_features.npy"
+    train_known_known_label_path = feature_base_home + "/" + model_dir + "/features/train_known_known_epoch_" + str(epoch) + "_labels.npy"
 
-    valid_known_known_feature_path = known_feature_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_features.npy"
-    valid_known_known_label_path = known_feature_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_labels.npy"
-    valid_known_known_probs_path = known_feature_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_probs.npy"
+    valid_known_known_feature_path = feature_base_home + "/" + model_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_features.npy"
+    valid_known_known_label_path = feature_base_home + "/" + model_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_labels.npy"
+    valid_known_known_probs_path = feature_base_home + "/" + model_dir + "/features/valid_known_known_epoch_" + str(epoch) + "_probs.npy"
 
     valid_known_known_feature = np.load(valid_known_known_feature_path)
     valid_known_known_label = np.load(valid_known_known_label_path)
+    t1 = time.time()
+    print("check 1: ", (t1 - start)/1000)
 
-    test_known_known_feature_path_p0 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_0_features.npy"
-    test_known_known_label_path_p0 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_0_labels.npy"
+    test_known_known_feature_path_p0 = feature_base_scratch + "/" + model_dir + "/test_results/test_known_known_epoch_" + str(epoch) + "_part_0_features.npy"
+    test_known_known_label_path_p0 = feature_base_scratch + "/" + model_dir + "/test_results/test_known_known_epoch_" + str(epoch) + "_part_0_labels.npy"
     test_known_known_feat_p0 = np.load(test_known_known_feature_path_p0)
     test_known_known_labels_p0 = np.load(test_known_known_label_path_p0)
+    t2 = time.time()
+    print("check 2: ", (t2 - t1)/1000)
 
-    test_known_known_feature_path_p1 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_1_features.npy"
-    test_known_known_label_path_p1 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_1_labels.npy"
+    test_known_known_feature_path_p1 = feature_base_scratch + "/" + model_dir + "/test_results/test_known_known_epoch_" + str(epoch) + "_part_1_features.npy"
+    test_known_known_label_path_p1 = feature_base_scratch + "/" + model_dir + "/test_results/test_known_known_epoch_" + str(epoch) + "_part_1_labels.npy"
     test_known_known_feat_p1 = np.load(test_known_known_feature_path_p1)
     test_known_known_labels_p1 = np.load(test_known_known_label_path_p1)
+    t3 = time.time()
+    print("check 3: ", (t3 - t2)/1000)
 
-    test_known_known_feature_path_p2 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_2_features.npy"
-    test_known_known_label_path_p2 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_2_labels.npy"
+    test_known_known_feature_path_p2 = feature_base_scratch + "/" + model_dir + "/test_results/test_known_known_epoch_" + str(epoch) + "_part_2_features.npy"
+    test_known_known_label_path_p2 = feature_base_scratch + "/" + model_dir + "/test_known_known_epoch_" + str(epoch) + "_part_2_labels.npy"
     test_known_known_feat_p2 = np.load(test_known_known_feature_path_p2)
     test_known_known_labels_p2 = np.load(test_known_known_label_path_p2)
+    t4 = time.time()
+    print("check 4: ", (t4 - t3)/1000)
 
-    test_known_known_feature_path_p3 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_3_features.npy"
-    test_known_known_label_path_p3 = known_feature_dir + "/test_known_known_epoch_" + str(epoch) + "_part_0_labels.npy"
+    test_known_known_feature_path_p3 = feature_base_scratch + "/" + model_dir + "/test_results/test_known_known_epoch_" + str(epoch) + "_part_3_features.npy"
+    test_known_known_label_path_p3 = feature_base_scratch + "/" + model_dir + "/test_results/test_known_known_epoch_" + str(epoch) + "_part_0_labels.npy"
     test_known_known_feat_p3 = np.load(test_known_known_feature_path_p3)
     test_known_known_labels_p3 = np.load(test_known_known_label_path_p3)
+    t5 = time.time()
+    print("check 5: ", (t5 - t4)/1000)
 
-    test_unknown_unknown_feature_path = unknown_feature_dir + "/test_unknown_unknown_epoch_" + str(epoch) +"_features.npy"
+    test_unknown_unknown_feature_path = feature_base_home + "/" + model_dir + "/test_results/test_unknown_unknown_epoch_" + str(epoch) +"_features.npy"
 
     test_known_known_feature = np.concatenate((test_known_known_feat_p0, test_known_known_feat_p1,
                                              test_known_known_feat_p2, test_known_known_feat_p3), axis=0)
     test_known_known_label = np.concatenate((test_known_known_labels_p0, test_known_known_labels_p1,
                                               test_known_known_labels_p2, test_known_known_labels_p3), axis=0)
+    t6 = time.time()
+    print("check 6: ", (t6 - t5)/1000)
 
     # Paths to save EVM model, EVM probs and results
-    save_result_dir = unknown_feature_dir
+    save_result_dir = feature_base_scratch + "/" + model_dir
 
 
 #####################################################
@@ -156,12 +168,12 @@ if debug:
                                               test_unknown_unknown_feature.shape[1] * test_unknown_unknown_feature.shape[2]))
 
     # For testing, just get 100 samples
-    train_known_known_feature = train_known_known_feature[:500]
+    train_known_known_feature = train_known_known_feature[:100]
     valid_known_known_feature = train_known_known_feature
     test_known_known_feature = test_known_known_feature[:30]
     test_unknown_unknown_feature = test_unknown_unknown_feature[:100]
 
-    train_known_known_label = train_known_known_label[:500]
+    train_known_known_label = train_known_known_label[:100]
     valid_known_known_label = train_known_known_label
     test_known_known_label = test_known_known_label[:30]
 
@@ -416,7 +428,7 @@ def train_test_evm(train_known_feature,
 
         return valid_acc_known_top_1, 0.000, 0.000,\
                test_acc_known_top_1, 0.000, 0.000, \
-               test_known_known_known_probs, unknown_unknown_known_probs
+               valid_known_known_known_probs, test_known_known_known_probs, unknown_unknown_known_probs
 
     else:
         valid_acc_known_top_1 = top_k_accuracy_score(valid_known_labels, valid_pred_labels, k=1)
@@ -472,30 +484,43 @@ if __name__ == '__main__':
     # Option for evm
     if run_evm:
         for one_tail in tail_size:
-            evm_acc_top1, evm_acc_top3, evm_acc_top5, \
-            known_known_known_probs, \
-            unknown_unknown_known_probs = train_test_evm(train_known_feature=train_feature_reduced,
-                                                           train_known_labels=train_known_known_label,
-                                                           test_known_feature=test_known_feature_reduced,
-                                                           test_unknown_feature=test_unknown_feature_reduced,
-                                                           tail_size=one_tail,
-                                                           debug=debug)
+            evm_valid_top_1, evm_valid_top_3, \
+            evm_valid_top_5, evm_test_top_1, \
+            evm_test_top_3, evm_test_top_5, \
+            evm_valid_known_known_known_probs, \
+            evm_test_known_known_known_probs, \
+            evm_unknown_unknown_known_probs = train_test_evm(train_known_feature=train_feature_reduced,
+                                                            train_known_labels=train_known_known_label,
+                                                            valid_known_feature=valid_feature_reduced,
+                                                            valid_known_labels=valid_known_known_label,
+                                                               test_known_feature=test_known_feature_reduced,
+                                                               test_known_labels=test_known_known_label,
+                                                               test_unknown_feature=test_unknown_feature_reduced,
+                                                               tail_size=one_tail,
+                                                               debug=debug)
 
             # EVM post-process for unknown
-            evm_acc_unknown_unknown = get_unknown_acc(probs=unknown_unknown_known_probs,
+            evm_acc_unknown_unknown = get_unknown_acc(probs=evm_unknown_unknown_known_probs,
                                                       threshold=novelty_thresh[-1])
 
             # Save EVM results
             save_evm_result_path = save_result_dir + "/evm_result_tail_size_" + str(one_tail) + ".txt"
 
+            print(evm_valid_top_1, evm_valid_top_3, evm_valid_top_5,
+                  evm_test_top_1, evm_test_top_3, evm_test_top_5,
+                  evm_acc_unknown_unknown)
+
             with open(save_evm_result_path, 'a') as f:
-                f.write('%0.6f, %0.6f, %0.6f, %0.6f, ' % (evm_acc_top1, evm_acc_top3,
-                                                          evm_acc_top5, evm_acc_unknown_unknown))
+                f.write('%0.6f, %0.6f, %0.6f, %0.6f, %0.6f, %0.6f, %0.6f, ' %
+                        (evm_valid_top_1, evm_valid_top_3, evm_valid_top_5,
+                         evm_test_top_1, evm_test_top_3, evm_test_top_5, evm_acc_unknown_unknown))
 
             # Save EVM probs (for potential future use)
-            save_known_prob_path = save_result_dir + "/evm_known_known_known_probs_tail_size" + str(one_tail) + ".npy"
+            save_known_valid_prob_path = save_result_dir + "/evm_valid_known_known_known_probs_tail_size" + str(one_tail) + ".npy"
+            save_known_test_prob_path = save_result_dir + "/evm_test_known_known_known_probs_tail_size" + str(one_tail) + ".npy"
             save_unknown_prob_path = save_result_dir + "/evm_unknown_unknown_known_probs_tail_size" + str(one_tail) + ".npy"
 
-            np.save(save_known_prob_path, known_known_known_probs)
-            np.save(save_unknown_prob_path, unknown_unknown_known_probs)
+            np.save(save_known_valid_prob_path, evm_valid_known_known_known_probs)
+            np.save(save_known_test_prob_path, evm_test_known_known_known_probs)
+            np.save(save_unknown_prob_path, evm_unknown_unknown_known_probs)
 
