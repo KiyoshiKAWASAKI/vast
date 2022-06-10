@@ -25,13 +25,16 @@ c = 1
 cov_thresh = [0.1, 0.2, 0.3, 0.4, 0.5,
               0.6, 0.7, 0.8, 0.9]
 tail_size = [10, 100, 1000, 10000]
+# cov_thresh = [0.5]
+# tail_size = [1000]
+
 percent = 50
 pca_ratio = 0.99
 
 device = "cuda:0"
 
-run_svm = True
-run_evm = False
+run_svm = False
+run_evm = True
 
 debug = False
 start = time.time()
@@ -402,10 +405,8 @@ def train_test_svm(train_known_feature,
         #################################################################
         pred_valid = svm_model.decision_function(valid_known_feature)
 
-        valid_acc_known_top_1, \
-        valid_acc_known_top_3,\
-        valid_acc_known_top_5 = get_known_acc(labels=valid_known_labels,
-                                              probs=pred_valid)
+        _, _, _ = get_known_acc(labels=valid_known_labels,
+                                probs=pred_valid)
 
         #################################################################
         # Test known
@@ -493,7 +494,6 @@ def train_test_svm(train_known_feature,
 
 
 
-
 def train_test_evm(train_known_feature,
                    train_known_labels,
                    valid_known_feature,
@@ -565,14 +565,21 @@ def train_test_evm(train_known_feature,
                valid_known_known_known_probs, test_known_known_known_probs, unknown_unknown_known_probs
 
     else:
-        valid_acc_known_top_1, \
-        valid_acc_known_top_3, \
-        valid_acc_known_top_5 = get_known_acc(labels=valid_known_labels,
-                                              probs=valid_known_known_known_probs)
+        # Validation, we dont really care about it
+        _, _, _ = get_known_acc(labels=valid_known_labels,
+                                probs=valid_known_known_known_probs)
 
+        #################################################################
+        # Test known
+        #################################################################
         test_top_1_acc = []
         test_top_3_acc = []
         test_top_5_acc = []
+
+        true_positive = []
+        true_negative = []
+        false_positive = []
+        false_negative = []
 
         for i in range(nb_test_parts):
             one_label = test_known_labels[i]
@@ -581,6 +588,7 @@ def train_test_evm(train_known_feature,
             one_feature = torch.from_numpy(one_feature).float()
             pred_known_known = evm.known_probs(one_feature).cpu().detach().numpy()
 
+            # calculate multi-class
             test_acc_known_top_1, \
             test_acc_known_top_3, \
             test_acc_known_top_5 = get_known_acc(labels=one_label,
@@ -590,15 +598,67 @@ def train_test_evm(train_known_feature,
             test_top_3_acc.append(test_acc_known_top_3)
             test_top_5_acc.append(test_acc_known_top_5)
 
+            # Calculate binary
+            tp, tn, fp, fn = get_binary_stats(test_known_prob=pred_known_known,
+                                              test_unknown_prob=None,
+                                              threshold=novelty_thresh[-1])
+            true_positive.append(tp)
+            true_negative.append(tn)
+            false_positive.append(fp)
+            false_negative.append(fn)
+
         test_acc_known_top_1 = sum(test_top_1_acc) / len(test_top_1_acc)
         test_acc_known_top_3 = sum(test_top_3_acc) / len(test_top_3_acc)
         test_acc_known_top_5 = sum(test_top_5_acc) / len(test_top_5_acc)
 
-        return valid_acc_known_top_1, valid_acc_known_top_3,  valid_acc_known_top_5, \
-               test_acc_known_top_1, test_acc_known_top_3, test_acc_known_top_5, \
-               unknown_unknown_known_probs
+        #################################################################
+        # Test unknown
+        #################################################################
+        tp, tn, fp, fn = get_binary_stats(test_known_prob=None,
+                                          test_unknown_prob=unknown_unknown_known_probs,
+                                          threshold=novelty_thresh[-1])
 
+        true_positive.append(tp)
+        true_negative.append(tn)
+        false_positive.append(fp)
+        false_negative.append(fn)
 
+        #################################################################
+        # Output all results
+        #################################################################
+        true_positive = sum(true_positive)
+        true_negative = sum(true_negative)
+        false_positive = sum(false_positive)
+        false_negative = sum(false_negative)
+
+        print("True positive: ", true_positive)
+        print("True negative: ", true_negative)
+        print("False postive: ", false_positive)
+        print("False negative: ", false_negative)
+
+        try:
+            mcc = calculate_mcc(true_pos=float(true_positive),
+                                true_neg=float(true_negative),
+                                false_pos=float(false_positive),
+                                false_neg=float(false_negative))
+            print("MCC score: ", mcc)
+        except:
+            print("===> No MCC score available")
+
+        try:
+            precision = float(true_positive) / float(true_positive + false_positive)
+            recall = float(true_positive) / float(true_positive + false_negative)
+            f1 = (2 * precision * recall) / (precision + recall)
+            print("F-1 score: ", f1)
+        except:
+            print("===> No F-1 score available")
+
+        unknown_acc = float(true_negative) / float(true_negative + false_positive)
+
+        print("Test unknown accuracy: ", unknown_acc)
+        print("Test known acc top-1: ", test_acc_known_top_1)
+        print("Test known acc top-3: ", test_acc_known_top_3)
+        print("Test known acc top-5: ", test_acc_known_top_5)
 
 
 if __name__ == '__main__':
@@ -608,6 +668,7 @@ if __name__ == '__main__':
 
     # Option for svm
     if run_svm:
+        print("*" * 50)
         train_test_svm(train_known_feature=train_known_known_feature,
                       train_known_labels=train_known_known_label,
                       valid_known_feature=valid_known_known_feature,
@@ -633,29 +694,19 @@ if __name__ == '__main__':
                 print("current cover threshold: ", one_cover_threshold)
                 print("current tail size: ", one_tail)
 
-                evm_valid_top_1, evm_valid_top_3, \
-                evm_valid_top_5, evm_test_top_1, \
-                evm_test_top_3, evm_test_top_5, \
-                evm_unknown_unknown_known_probs = train_test_evm(train_known_feature=train_known_known_feature,
-                                                                train_known_labels=train_known_known_label,
-                                                                valid_known_feature=valid_known_known_feature,
-                                                                valid_known_labels=valid_known_known_label,
-                                                                   test_known_feature=[test_known_known_feat_p0,
-                                                                                        test_known_known_feat_p1,
-                                                                                        test_known_known_feat_p2,
-                                                                                        test_known_known_feat_p3],
-                                                                   test_known_labels=[test_known_known_labels_p0,
-                                                                                        test_known_known_labels_p1,
-                                                                                        test_known_known_labels_p2,
-                                                                                        test_known_known_labels_p3],
-                                                                   test_unknown_feature=test_unknown_unknown_feature,
-                                                                   tail_size=one_tail,
-                                                                   cover_threshold=one_cover_threshold,
-                                                                   debug=debug)
-
-                # EVM post-process for unknown
-                evm_acc_unknown_unknown = get_unknown_acc(probs=evm_unknown_unknown_known_probs,
-                                                          threshold=novelty_thresh[-1])
-
-
-
+                train_test_evm(train_known_feature=train_known_known_feature,
+                                train_known_labels=train_known_known_label,
+                                valid_known_feature=valid_known_known_feature,
+                                valid_known_labels=valid_known_known_label,
+                                test_known_feature=[test_known_known_feat_p0,
+                                                    test_known_known_feat_p1,
+                                                    test_known_known_feat_p2,
+                                                    test_known_known_feat_p3],
+                                test_known_labels=[test_known_known_labels_p0,
+                                                    test_known_known_labels_p1,
+                                                    test_known_known_labels_p2,
+                                                    test_known_known_labels_p3],
+                               test_unknown_feature=test_unknown_unknown_feature,
+                               tail_size=one_tail,
+                               cover_threshold=one_cover_threshold,
+                               debug=debug)
