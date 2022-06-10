@@ -17,30 +17,10 @@ from sklearn.metrics import top_k_accuracy_score
 # TODO: cross entropy
 # model_dir, epoch = "2022-02-13/known_only_cross_entropy/seed_0", 147
 # model_dir, epoch = "2022-02-13/known_only_cross_entropy/seed_1", 181
-model_dir, epoch = "2022-02-13/known_only_cross_entropy/seed_2", 195
+# model_dir, epoch = "2022-02-13/known_only_cross_entropy/seed_2", 195
 # model_dir, epoch = "2022-02-13/known_only_cross_entropy/seed_3", 142
-# model_dir, epoch = "2022-02-13/known_only_cross_entropy/seed_4", 120
+model_dir, epoch = "2022-02-13/known_only_cross_entropy/seed_4", 120
 
-# TODO: Cross-entropy + sam
-# model_dir, epoch = "2022-02-14/known_only_cross_entropy_1.0_pfm_1.0/seed_0", 175
-# model_dir, epoch = "2022-02-14/known_only_cross_entropy_1.0_pfm_1.0/seed_1", 105
-# model_dir, epoch = "2022-02-14/known_only_cross_entropy_1.0_pfm_1.0/seed_2", 159
-# model_dir, epoch = "2022-02-14/known_only_cross_entropy_1.0_pfm_1.0/seed_3", 103
-# model_dir, epoch = "2022-02-14/known_only_cross_entropy_1.0_pfm_1.0/seed_4", 193
-
-# TODO: All 3 losses
-# model_dir, epoch = "2022-03-30/cross_entropy_1.0_pfm_1.0_exit_1.0_unknown_ratio_1.0/seed_0", 156
-# model_dir, epoch = "2022-03-30/cross_entropy_1.0_pfm_1.0_exit_1.0_unknown_ratio_1.0/seed_1", 194
-# model_dir, epoch = "2022-03-30/cross_entropy_1.0_pfm_1.0_exit_1.0_unknown_ratio_1.0/seed_2", 192
-# model_dir, epoch = "2022-03-25/cross_entropy_1.0_pfm_1.0_exit_1.0_unknown_ratio_1.0/seed_3", 141
-# model_dir, epoch = "2022-03-25/cross_entropy_1.0_pfm_1.0_exit_1.0_unknown_ratio_1.0/seed_4", 160
-
-# TODO: CE + pp
-# model_dir, epoch = "2022-03-25/cross_entropy_1.0_exit_1.0_unknown_ratio_1.0/seed_0", 173
-# model_dir, epoch = "2022-03-30/cross_entropy_1.0_exit_1.0_unknown_ratio_1.0/seed_1", 130
-# model_dir, epoch = "2022-03-30/cross_entropy_1.0_exit_1.0_unknown_ratio_1.0/seed_2", 166
-# model_dir, epoch = "2022-03-30/cross_entropy_1.0_exit_1.0_unknown_ratio_1.0/seed_3", 128
-# model_dir, epoch = "2022-03-30/cross_entropy_1.0_exit_1.0_unknown_ratio_1.0/seed_4", 110
 print("Processing model: ", model_dir)
 
 feature_base_scratch = "/afs/crc.nd.edu/user/j/jhuang24/scratch_50/jhuang24/models/msd_net"
